@@ -36,11 +36,15 @@ async function main() {
     })
 
     const result = await agent.invoke({
-        messages: [{
-            role: 'user',
-            content: 'do i have any meeting today?'
-        }
-
+        messages: [
+            {
+                role: 'system',
+                content: 'You are an assistant. Use the provided tools to fetch information and give user-readable output.'
+            },
+            {
+                role: 'user',
+                content: 'do i have any meeting today?'
+            }
         ]
     })
 
