@@ -1,3 +1,4 @@
+import { writeFileSync } from 'fs';
 import { ChatGroq } from "@langchain/groq"
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import { TavilySearch } from '@langchain/tavily'
@@ -42,6 +43,15 @@ async function main() {
 
         ]
     })
+
+    const drawableGraphGraphState = await agent.getGraphAsync();
+    const graphStateImage = await drawableGraphGraphState.drawMermaidPng();
+    const graphStateArrayBuffer = await graphStateImage.arrayBuffer();
+
+    const filePath = './graphState.png';
+
+    writeFileSync(filePath, new Uint8Array(graphStateArrayBuffer));
+
     console.log("result===>", result.messages[result.messages.length - 1].content)
 }
 
