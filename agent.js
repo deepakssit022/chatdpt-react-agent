@@ -1,9 +1,11 @@
 import { writeFileSync } from 'fs';
+import { createInterface } from 'node:readline/promises';
 import { ChatGroq } from "@langchain/groq"
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import { TavilySearch } from '@langchain/tavily'
 import { tool } from '@langchain/core/tools'
 import z from 'zod';
+import { MemorySaver } from '@langchain/langgraph';
 
 async function main() {
 
@@ -29,34 +31,57 @@ async function main() {
             })
         }
     )
-
+    const checkpointer = new MemorySaver();
     const agent = createReactAgent({
         llm: model,
-        tools: [search, calendarEvents]
+        tools: [search, calendarEvents],
+        checkpointer: checkpointer
     })
 
-    const result = await agent.invoke({
-        messages: [
-            {
-                role: 'system',
-                content: 'You are an assistant. Use the provided tools to fetch information and give user-readable output.'
-            },
-            {
-                role: 'user',
-                content: 'do i have any meeting today?'
-            }
-        ]
-    })
 
-    const drawableGraphGraphState = await agent.getGraphAsync();
-    const graphStateImage = await drawableGraphGraphState.drawMermaidPng();
-    const graphStateArrayBuffer = await graphStateImage.arrayBuffer();
 
-    const filePath = './graphState.png';
+    // Save agent graph visualization once on startup
+    const drawableGraph = await agent.getGraphAsync();
+    const graphImage = await drawableGraph.drawMermaidPng();
+    writeFileSync('./graphState.png', new Uint8Array(await graphImage.arrayBuffer()));
 
-    writeFileSync(filePath, new Uint8Array(graphStateArrayBuffer));
+    // Initialize conversation with system prompt
+    const messages = [
+        {
+            role: 'system',
+            content: 'You are an assistant. Use the provided tools to fetch information and give user-readable output.'
+        }
+    ];
 
-    console.log("result===>", result.messages[result.messages.length - 1].content)
+    const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    console.log('Chat started. Type "exit" to quit.\n');
+
+    const config = { configurable: { thread_id: "main-thread" } };
+
+    while (true) {
+        const userInput = await rl.question('You: ');
+
+        if (userInput.trim().toLowerCase() === 'exit') {
+            console.log('Goodbye!');
+            rl.close();
+            break;
+        }
+
+        if (!userInput.trim()) continue;
+
+        // MemorySaver checkpointer manages history — just send the new message
+        const result = await agent.invoke(
+            { messages: [...messages, { role: 'user', content: userInput }] },
+            config
+        );
+
+        const assistantMessage = result.messages[result.messages.length - 1];
+        console.log(`\nAssistant: ${assistantMessage.content}\n`);
+    }
 }
 
 main();
