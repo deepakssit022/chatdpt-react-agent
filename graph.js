@@ -1,9 +1,11 @@
+import { createInterface } from 'node:readline/promises';
 import { ChatGroq } from "@langchain/groq"
 import { TavilySearch } from '@langchain/tavily'
 import { tool } from '@langchain/core/tools'
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { MessagesAnnotation, StateGraph, START, END } from "@langchain/langgraph";
 import z from 'zod';
+import { printGraph } from "./utils.js";
 
 
 
@@ -57,16 +59,39 @@ const graph = new StateGraph(MessagesAnnotation)
 const app = graph.compile();
 
 async function main() {
-    const result = await app.invoke({
-        messages: [{
-            role: 'user',
-            content: "what is the weather in new delhi today?"
-        }]
+    await printGraph(app, "./customGraph.png");
+
+    const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout
     });
-    // console.log("result:", result.messages[result.messages.length - 1].content);
-    const messages = result.messages;
-    const final = messages[messages.length - 1];
-    console.log("final response in main:", final.content);
+
+    console.log('Chat started. Type "exit" to quit.\n');
+
+    let messages = [];
+
+    while (true) {
+        const userInput = await rl.question('You: ');
+
+        if (userInput.trim().toLowerCase() === 'exit') {
+            console.log('Goodbye!');
+            rl.close();
+            break;
+        }
+
+        if (!userInput.trim()) continue;
+
+        messages.push({
+            role: 'user',
+            content: userInput
+        });
+
+        const result = await app.invoke({ messages });
+
+        messages = result.messages;
+        const finalMessage = messages[messages.length - 1];
+        console.log(`\nAssistant: ${finalMessage.content}\n`);
+    }
 }
 
 main()
